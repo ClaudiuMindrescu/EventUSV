@@ -4,9 +4,9 @@ import Login from '../components/Login'
 export default function LoginPage({ onLogin }) {
   const navigate = useNavigate()
 
-  const handleLoginSuccess = (token, user) => {
-    onLogin(token, user)
-    navigate('/evenimente')
+  const handleLoginSuccess = async (token, user) => {
+    const syncedUser = await onLogin(token, user)
+    navigate(syncedUser?.role === 'ADMIN' ? '/admin' : '/evenimente')
   }
 
   return (

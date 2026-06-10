@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import EventDetails from '../components/EventDetails'
 
-export default function EventDetailPage({ token }) {
+export default function EventDetailPage({ token, user }) {
   const { id } = useParams()
   const navigate = useNavigate()
 
@@ -19,7 +19,7 @@ export default function EventDetailPage({ token }) {
   return (
     <main className="min-h-screen bg-[#f8fafc] text-slate-900">
       <div className="p-6 max-w-7xl mx-auto">
-        <EventDetails eventId={id} token={token} onBack={() => navigate('/evenimente')} />
+        <EventDetails eventId={id} token={token} user={user} onBack={() => navigate('/evenimente')} />
       </div>
     </main>
   )

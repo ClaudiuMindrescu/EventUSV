@@ -1,9 +1,92 @@
 import { useEffect, useState } from 'react'
+import { CalendarPlus, CheckCircle2, Download, X } from 'lucide-react'
+import { supabase } from '../utils/supabase'
 
-export default function EventDetails({ eventId, token, onBack }) {
+const toCalendarDate = (value) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+}
+
+const escapeIcsText = (value = '') =>
+  String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/\n/g, '\\n')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;')
+
+const getEventEndDate = (event) => {
+  if (event?.date_end) return event.date_end
+
+  const startDate = new Date(event?.date_start)
+  if (Number.isNaN(startDate.getTime())) return event?.date_start
+
+  return new Date(startDate.getTime() + 60 * 60 * 1000).toISOString()
+}
+
+const getEventPlace = (event, locationName) => event?.online_link || locationName || ''
+
+const getGoogleCalendarUrl = (event, locationName) => {
+  const start = toCalendarDate(event.date_start)
+  const end = toCalendarDate(getEventEndDate(event))
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title || 'Event',
+    dates: `${start}/${end}`,
+    details: event.short_description || '',
+    location: getEventPlace(event, locationName),
+  })
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`
+}
+
+const downloadIcsFile = (event, locationName) => {
+  const start = toCalendarDate(event.date_start)
+  const end = toCalendarDate(getEventEndDate(event))
+  const now = toCalendarDate(new Date())
+  const title = event.title || 'Event'
+  const location = getEventPlace(event, locationName)
+  const uid = `${event.id || crypto.randomUUID()}@eventusv`
+  const filename = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'event'}.ics`
+  const description = [event.short_description, event.online_link].filter(Boolean).join('\n')
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//EventUSV//Event Calendar//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${now}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${escapeIcsText(title)}`,
+    `DESCRIPTION:${escapeIcsText(description)}`,
+    `LOCATION:${escapeIcsText(location)}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n')
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+export default function EventDetails({ eventId, token, user, onBack }) {
   const [event, setEvent] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [registrationLoading, setRegistrationLoading] = useState(false)
+  const [registrationStatus, setRegistrationStatus] = useState('')
+  const [registrationMessage, setRegistrationMessage] = useState('')
+  const hasRegistration = Boolean(registrationStatus)
 
   useEffect(() => {
     async function fetchEvent() {
@@ -40,8 +123,122 @@ export default function EventDetails({ eventId, token, onBack }) {
     fetchEvent()
   }, [eventId, token])
 
+  useEffect(() => {
+    async function fetchRegistrationStatus() {
+      if (!user?.id || !eventId) return
+
+      setRegistrationStatus('')
+      setRegistrationMessage('')
+
+      try {
+        const { data, error } = await supabase
+          .from('registrations')
+          .select('id,status')
+          .eq('event_id', eventId)
+          .eq('user_id', user.id)
+          .limit(1)
+
+        if (error) throw error
+
+        const existingRegistration = data?.[0]
+        if (existingRegistration) {
+          setRegistrationStatus(existingRegistration.status || 'registered')
+          setRegistrationMessage(
+            existingRegistration.status === 'confirmed'
+              ? 'Participarea ta este confirmata.'
+              : 'Exista deja o inregistrare pentru acest eveniment.'
+          )
+        }
+      } catch (err) {
+        console.error('Error checking registration:', err)
+      }
+    }
+
+    fetchRegistrationStatus()
+  }, [eventId, user?.id])
+
+  const handleConfirmParticipation = async () => {
+    if (!user?.id) {
+      setRegistrationMessage('Trebuie sa fii autentificat pentru confirmare.')
+      return
+    }
+
+    setRegistrationLoading(true)
+    setRegistrationMessage('')
+
+    try {
+      const { error } = await supabase.from('registrations').insert({
+        event_id: eventId,
+        user_id: user.id,
+        status: 'confirmed',
+      })
+
+      if (error) {
+        if (error.code === '23505') {
+          setRegistrationStatus('confirmed')
+          setRegistrationMessage('Participarea ta este deja confirmata.')
+          return
+        }
+        throw error
+      }
+
+      setRegistrationStatus('confirmed')
+      setRegistrationMessage('Participarea a fost confirmata.')
+    } catch (err) {
+      console.error('Error confirming participation:', err)
+      setRegistrationMessage('Participarea nu a putut fi confirmata.')
+    } finally {
+      setRegistrationLoading(false)
+    }
+  }
+
+  const handleCancelParticipation = async () => {
+    if (!user?.id) {
+      setRegistrationMessage('Trebuie sa fii autentificat pentru anulare.')
+      return
+    }
+
+    if (!window.confirm('Esti sigur ca vrei sa anulezi participarea?')) {
+      return
+    }
+
+    setRegistrationLoading(true)
+    setRegistrationMessage('')
+
+    try {
+      const response = await fetch(`http://localhost:8000/participation/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        const message = body.detail || 'Unable to cancel participation.'
+        throw new Error(message)
+      }
+
+      setRegistrationStatus('')
+      setRegistrationMessage('Participarea a fost anulata cu succes.')
+    } catch (err) {
+      console.error('Error cancelling participation:', err)
+      setRegistrationMessage('Participarea nu a putut fi anulata.')
+    } finally {
+      setRegistrationLoading(false)
+    }
+  }
+
   const locationName =
     event?.location?.name || event?.locations?.name || event?.location_name || 'Unknown location'
+
+  const handleAddToGoogleCalendar = () => {
+    window.open(getGoogleCalendarUrl(event, locationName), '_blank', 'noopener,noreferrer')
+  }
+
+  const handleDownloadIcs = () => {
+    downloadIcsFile(event, locationName)
+  }
 
   if (loading) {
     return (
@@ -83,6 +280,57 @@ export default function EventDetails({ eventId, token, onBack }) {
       {event.image_url && (
         <img src={event.image_url} alt={event.title} className="mb-6 h-72 w-full rounded-3xl object-cover" />
       )}
+
+      <div className="mb-6 flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Participare</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {registrationMessage || 'Confirma participarea la acest eveniment.'}
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            onClick={handleConfirmParticipation}
+            disabled={registrationLoading || hasRegistration}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-usv-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-default disabled:bg-emerald-600 disabled:opacity-80"
+          >
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            {hasRegistration
+              ? registrationStatus === 'confirmed'
+                ? 'Participare confirmata'
+                : 'Deja inregistrat'
+              : registrationLoading
+                ? 'Se confirma...'
+                : 'Confirm Participation'}
+          </button>
+          {hasRegistration && (
+            <button
+              onClick={handleCancelParticipation}
+              disabled={registrationLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-default disabled:opacity-60"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+              {registrationLoading ? 'Se anuleaza...' : 'Anuleaza Participarea'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleAddToGoogleCalendar}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+          >
+            <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+            Add to Google Calendar
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadIcs}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Download .ics
+          </button>
+        </div>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2 text-sm text-slate-600 mb-6">
         <div>

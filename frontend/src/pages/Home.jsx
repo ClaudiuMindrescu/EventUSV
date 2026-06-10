@@ -4,76 +4,49 @@ export default function Home() {
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Hero Section */}
-      <section className="bg-usv-blue text-white py-20 px-6">
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-5xl md:text-6xl font-bold mb-6">
-            Sistem de Management al Evenimentelor USV
-          </h1>
-          <p className="text-lg md:text-xl max-w-3xl mx-auto mb-8 text-blue-100">
-            O platformă centralizată pentru conferințe, workshop-uri și târguri de carieră. 
-            Conectează studenții cu oportunități educative și profesionale de-a lungul întregului an universitar.
+    <div className="min-h-screen">
+      <section className="px-6 py-20 text-white">
+        <div className="mx-auto max-w-7xl text-center">
+          <p className="mb-4 text-sm font-semibold uppercase text-usv-gold">Universitatea Stefan cel Mare</p>
+          <h1 className="mb-6 text-5xl font-bold md:text-6xl">Sistem de Management al Evenimentelor USV</h1>
+          <p className="mx-auto mb-8 max-w-3xl text-lg text-slate-300 md:text-xl">
+            O platforma centralizata pentru conferinte, workshop-uri si targuri de cariera, construita pentru
+            comunitatea academica USV.
           </p>
           <button
             onClick={() => navigate('/evenimente')}
-            className="inline-block bg-white text-usv-blue px-8 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+            className="inline-block rounded-lg bg-usv-gold px-8 py-3 font-semibold text-slate-950 transition-colors hover:bg-yellow-300"
           >
-            Explorează evenimente
+            Exploreaza evenimente
           </button>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-16 px-6 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12 text-slate-900">
-            De ce să folosești EventUSV?
-          </h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="p-6 rounded-lg border border-slate-200 hover:shadow-lg transition-shadow">
-              <h3 className="text-xl font-semibold text-usv-blue mb-3">
-                Descoperă Evenimente
-              </h3>
-              <p className="text-slate-600">
-                Explorează o gamă largă de evenimente universităților, de la conferințe academice 
-                la oportunități de networking profesional.
-              </p>
-            </div>
-            <div className="p-6 rounded-lg border border-slate-200 hover:shadow-lg transition-shadow">
-              <h3 className="text-xl font-semibold text-usv-blue mb-3">
-                Gestionează Evenimente
-              </h3>
-              <p className="text-slate-600">
-                Organizatorii pot ușor crea, edita și gestiona evenimentele, cu notificări în timp real 
-                și tracking participanți.
-              </p>
-            </div>
-            <div className="p-6 rounded-lg border border-slate-200 hover:shadow-lg transition-shadow">
-              <h3 className="text-xl font-semibold text-usv-blue mb-3">
-                Planificare Eficientă
-              </h3>
-              <p className="text-slate-600">
-                Evită conflictele de program cu verificarea automată a disponibilității locațiilor 
-                și calendarul integrat.
-              </p>
-            </div>
+      <section className="px-6 py-16">
+        <div className="mx-auto max-w-7xl">
+          <h2 className="mb-12 text-center text-3xl font-bold text-white">De ce sa folosesti EventUSV?</h2>
+          <div className="grid gap-8 md:grid-cols-3">
+            {[
+              ['Descopera Evenimente', 'Exploreaza evenimente universitare, conferinte academice si oportunitati profesionale.'],
+              ['Gestioneaza Evenimente', 'Organizatorii pot crea, edita si urmari evenimente cu fluxuri clare de aprobare.'],
+              ['Planificare Eficienta', 'Pastreaza toate participarile si detaliile importante intr-un spatiu modern, usor de scanat.'],
+            ].map(([title, description]) => (
+              <div key={title} className="rounded-lg border border-slate-800 bg-slate-900/70 p-6 transition-shadow hover:shadow-lg">
+                <h3 className="mb-3 text-xl font-semibold text-usv-gold">{title}</h3>
+                <p className="text-slate-300">{description}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-16 px-6 bg-slate-50">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">
-            Gata să descoperi evenimentele?
-          </h2>
-          <p className="text-slate-600 mb-8">
-            Accesează lista completă de evenimente și ți-te înregistrează pentru cele care te interesează.
-          </p>
+      <section className="bg-slate-950/60 px-6 py-16">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="mb-4 text-2xl font-bold text-white">Gata sa descoperi evenimentele?</h2>
+          <p className="mb-8 text-slate-300">Acceseaza lista completa si confirma participarea la evenimentele relevante.</p>
           <button
             onClick={() => navigate('/evenimente')}
-            className="inline-block bg-usv-blue text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            className="inline-block rounded-lg bg-usv-gold px-8 py-3 font-semibold text-slate-950 transition-colors hover:bg-yellow-300"
           >
             Vezi toate evenimentele
           </button>

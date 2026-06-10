@@ -8,6 +8,9 @@ import EventDetailPage from './pages/EventDetailPage'
 import LoginPage from './pages/LoginPage'
 import MyEvents from './pages/MyEvents'
 import Profile from './pages/Profile'
+import Settings from './pages/Settings'
+import AdminDashboard from './pages/AdminDashboard'
+import Calendar from './pages/Calendar'
 import './index.css'
 
 function App() {
@@ -26,7 +29,7 @@ function App() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,full_name,email,role,is_organizer,department,faculty')
+        .select('id,full_name,email,role,is_organizer,department_id,avatar_url')
         .eq('id', authUser.id)
         .single()
 
@@ -58,18 +61,46 @@ function App() {
       }
     }
 
+    let departmentData = null
+    if (profileData?.department_id) {
+      try {
+        const { data, error } = await supabase
+          .from('departments')
+          .select('id,name,short_name')
+          .eq('id', profileData.department_id)
+          .single()
+
+        if (error) throw error
+        departmentData = data
+      } catch (departmentError) {
+        console.error('Department fetch failed:', departmentError)
+      }
+    }
+
     const mergedUser = {
       id: authUser.id,
       email: authUser.email,
       full_name: (profileData && profileData.full_name) || authUser.user_metadata?.full_name || authUser.email,
-      role: (profileData && profileData.role) || 'Student',
+      role: ((profileData && profileData.role) || 'STUDENT').toUpperCase(),
       is_organizer: (profileData && profileData.is_organizer) || false,
-      department: profileData?.department,
-      faculty: profileData?.faculty,
+      department_id: profileData?.department_id,
+      department: departmentData,
+      avatar_url: profileData?.avatar_url,
     }
 
     setUser(mergedUser)
     return mergedUser
+  }
+
+  const handleProfileUpdated = (profileData) => {
+    if (!profileData) return
+
+    setUser((currentUser) => ({
+      ...currentUser,
+      ...profileData,
+      role: (profileData.role || currentUser?.role || 'STUDENT').toUpperCase(),
+      department: profileData.department || currentUser?.department,
+    }))
   }
 
   useEffect(() => {
@@ -116,10 +147,11 @@ function App() {
   const handleLogin = async (token, user) => {
     setToken(token)
     if (user?.id) {
-      await syncProfile(user, token)
-    } else {
-      setUser(user)
+      return syncProfile(user, token)
     }
+
+    setUser(user)
+    return user
   }
 
   const handleLogout = () => {
@@ -127,18 +159,47 @@ function App() {
     setUser(null)
   }
 
+  const isAdmin = user?.role === 'ADMIN'
+  const requireUser = (element) => {
+    if (!token) return <Navigate to="/login" replace />
+    if (isAdmin) return <Navigate to="/admin" replace />
+    return element
+  }
+
+  const publicUserRoute = (element) => {
+    if (isAdmin) return <Navigate to="/admin" replace />
+    return element
+  }
+
+  const requireAdmin = (element) => {
+    if (!token) return <Navigate to="/login" replace />
+    if (!isAdmin) return <Navigate to="/evenimente" replace />
+    return element
+  }
+
   return (
     <Router>
-      <div className="min-h-screen bg-[#f8fafc] text-slate-900">
+      <div className="min-h-screen bg-[#070b1a] text-slate-100">
         <Navbar user={user} onLogout={handleLogout} />
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/evenimente" element={<EventsPage token={token} user={user} onLogout={handleLogout} />} />
-          <Route path="/evenimente/:id" element={<EventDetailPage token={token} />} />
-          <Route path="/login" element={token ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />} />
-          <Route path="/my-events" element={token ? <MyEvents token={token} user={user} /> : <Navigate to="/login" replace />} />
-          <Route path="/profile" element={token ? <Profile token={token} user={user} /> : <Navigate to="/login" replace />} />
-          <Route path="/settings" element={token ? <div className="container mx-auto px-4 py-8"><h1 className="text-3xl font-bold">Settings</h1><p className="mt-4">Settings page coming soon...</p></div> : <Navigate to="/login" replace />} />
+          <Route path="/" element={isAdmin ? <Navigate to="/admin" replace /> : <Home />} />
+          <Route
+            path="/evenimente"
+            element={publicUserRoute(<EventsPage token={token} user={user} onLogout={handleLogout} />)}
+          />
+          <Route path="/evenimente/:id" element={requireUser(<EventDetailPage token={token} user={user} />)} />
+          <Route
+            path="/login"
+            element={token ? <Navigate to={isAdmin ? '/admin' : '/evenimente'} replace /> : <LoginPage onLogin={handleLogin} />}
+          />
+          <Route path="/my-events" element={requireUser(<MyEvents token={token} user={user} />)} />
+          <Route path="/calendar" element={requireUser(<Calendar token={token} user={user} />)} />
+          <Route path="/profile" element={requireUser(<Profile token={token} user={user} />)} />
+          <Route
+            path="/settings"
+            element={requireUser(<Settings user={user} onProfileUpdated={handleProfileUpdated} />)}
+          />
+          <Route path="/admin" element={requireAdmin(<AdminDashboard user={user} />)} />
         </Routes>
       </div>
     </Router>

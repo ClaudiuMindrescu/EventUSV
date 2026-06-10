@@ -33,3 +33,14 @@ async def create_participation(payload: ParticipationCreate, user: dict = Depend
 async def get_my_registrations(user: dict = Depends(get_current_user)):
     response = supabase.table("participation").select("*,event:events(*)").eq("user_id", user["id"]).execute()
     return {"data": response.data}
+
+@router.delete("/{event_id}")
+async def cancel_participation(event_id: int, user: dict = Depends(get_current_user)):
+    # Check if participation exists
+    existing = supabase.table("participation").select("id").eq("event_id", event_id).eq("user_id", user["id"]).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Participation not found")
+    
+    # Delete participation
+    response = supabase.table("participation").delete().eq("event_id", event_id).eq("user_id", user["id"]).execute()
+    return {"message": "Participation cancelled successfully"}
